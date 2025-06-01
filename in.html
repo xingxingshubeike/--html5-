@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css"
+    />
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
+      onload="renderMathInElement(document.body);"
+    ></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        renderMathInElement(
+          document.getElementById("quantumIntroductionContent"),
+          {
+            delimiters: [
+              { left: "$$", right: "$$", display: true },
+              { left: "$", right: "$", display: false },
+              { left: "\\(", right: "\\)", display: false },
+              { left: "\\[", right: "\\]", display: true },
+            ],
+            ignoredElements: [],
+            macros: {
+              "\\ket": "\\left|#1\\right\\rangle",
+              "\\bra": "\\left\\langle#1\\right|",
+            },
+          }
+        );
+      });
+    </script>
+    <title>量子线路模拟器 (最大4个量子位)</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 10px;
+        background-color: #f0f0f0;
+      }
+      .main-container {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        margin-top: 10px;
+        width: 95%;
+      }
+      .left-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-right: 20px;
+      }
+      .toolbox-container {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 10px;
+        background-color: #f9f9f9;
+        width: 180px;
+      }
+      .toolbox-container h3 {
+        margin-top: 0;
+        text-align: center;
+      }
+      .gate-palette {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around;
+      }
+      .gate-item {
+        width: 50px;
+        height: 50px;
+        border: 1px solid #aaa;
+        background-color: #e0e0e0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 5px;
+        cursor: grab;
+        user-select: none;
+        text-align: center;
+      }
+      .gate-item:hover {
+        background-color: #d0d0d0;
+      }
+
+      /* New style for the center content area */
+      .center-column-content {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1; /* Allows this column to take available space */
+        align-items: stretch; /* Makes children like circuit-panel take full width */
+      }
+
+      .circuit-panel {
+        /* flex-grow: 1; Removed as parent .center-column-content now handles flex growth */
+        display: flex;
+        flex-direction: column;
+      }
+      .circuit-controls {
+        margin-bottom: 10px;
+        display: flex; /* Use flexbox for alignment */
+        justify-content: space-between; /* Space out items */
+        align-items: center; /* Align items vertically */
+      }
+      .circuit-controls button {
+        padding: 8px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+      }
+      .circuit-controls button:hover {
+        background-color: #0056b3;
+      }
+      .qubit-input-container {
+        display: flex;
+        align-items: center;
+      }
+      .qubit-input-container label {
+        margin-right: 8px;
+        font-size: 14px;
+      }
+      .qubit-input-container input {
+        width: 50px;
+        padding: 6px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      .circuit-area-container {
+        border: 1px solid #ccc;
+        padding: 10px;
+        background-color: white;
+        box-shadow: 2px 2px 5px #ccc;
+      }
+      .circuit-lanes-container {
+        position: relative;
+        margin-bottom: 10px;
+      }
+      .qubit-lane {
+        display: flex;
+        align-items: center;
+        height: 60px;
+        border-bottom: 1px dashed #aaa;
+        background-color: #f0f8ff;
+        margin-bottom: 5px;
+        padding-left: 130px; /* 从 40px 增加到 130px，为更宽的标签区域腾出空间 */
+        position: relative; /* 保持相对定位 */
+      }
+      .qubit-lane:last-child {
+        border-bottom: none;
+      }
+      .qubit-label {
+        position: absolute;
+        left: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.9em;
+        color: #555;
+        display: flex; /* 改为 flex 布局以并排显示 "qX:" 和下拉框 */
+        align-items: center; /* 垂直居中 flex 项 */
+        width: 120px; /* 增加宽度以容纳下拉框，根据实际情况调整 */
+      }
+      .qubit-label span {
+        /* qX: 文本的样式 */
+        margin-right: 4px; /* 在 "qX:" 和下拉框之间添加一些间距 */
+      }
+      .qubit-initial-state-selector {
+        /* 下拉框的样式 */
+        font-size: 0.9em; /* 与标签字体大小匹配 */
+        padding: 2px;
+        border-radius: 3px;
+        border: 1px solid #ccc;
+        /* width: 70px; /* 可选：固定下拉框宽度 */
+      }
+      .circuit-lane-dropzone {
+        flex-grow: 1;
+        display: flex; /* This was interfering, changed to allow absolute positioning of gates */
+        align-items: center;
+        min-height: 50px; /* Visualization of where gates go */
+        position: relative; /* Needed for absolute positioning of gates and prob display */
+      }
+      .circuit-lane-dropzone .gate-item {
+        background-color: #28a745; /* This was for dropped gates, may not be needed if using specific colors */
+        color: white;
+        cursor: default;
+      }
+      .circuit-lane-dropzone .gate-item .delete-gate {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #dc3545;
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 12px;
+        line-height: 18px;
+        text-align: center;
+        cursor: pointer;
+        border: 1px solid white;
+        font-weight: bold;
+        display: none;
+      }
+      .circuit-lane-dropzone .gate-item:hover .delete-gate {
+        display: block;
+      }
+
+      /* Styles for the relocated Bloch spheres section */
+      .bloch-spheres-section-wrapper {
+        margin-top: 20px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        background-color: white; /* Match other display items */
+        box-shadow: 2px 2px 5px #ccc; /* Match circuit area */
+      }
+      .bloch-spheres-section-wrapper h3 {
+        text-align: center;
+        margin-top: 0;
+        margin-bottom: 10px;
+      }
+      #blochSpheresContainer {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around; /* Or 'center' if preferred */
+        align-items: flex-start;
+      }
+      /* Override/specify style for individual bloch sphere display items if needed */
+      #blochSpheresContainer .display-item {
+        width: auto; /* Override generic .display-item width: 100% */
+        flex-basis: 300px; /* Suggested width for each sphere item */
+        margin: 10px; /* Spacing between spheres */
+        /* background-color, border, padding are inherited from .display-item */
+      }
+      #blochSpheresContainer .display-item h4 {
+        /* Style for Qubit X title */
+        text-align: center;
+        font-size: 0.9em;
+        margin-bottom: 5px;
+      }
+      #blochSpheresContainer .display-item canvas {
+        width: 280px;
+        height: 280px;
+        cursor: grab;
+        /* display: block; margin: 0 auto; from .display-item canvas is fine */
+      }
+
+      .right-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-left: 20px;
+        width: 350px;
+      }
+      .displays-container h3 {
+        margin-top: 0;
+        text-align: center;
+      }
+      .display-item {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 10px;
+        background-color: white;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .display-item canvas {
+        border: 1px solid black;
+        background-color: white;
+        display: block;
+        margin: 0 auto;
+      }
+      /* #probabilityCanvas { /* REMOVED */
+      /* width: 300px; */
+      /* height: 300px; */
+      /* } */
+      #amplitudeCanvas {
+        width: 300px;
+        height: 200px;
+      }
+
+      .status-display {
+        margin-top: 15px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        background-color: #fff;
+        font-family: monospace;
+        font-size: 0.9em;
+      }
+      .status-display p {
+        margin: 5px 0;
+      }
+      #circuitRepresentationDisplay {
+        font-size: 0.85em;
+        color: #333;
+        margin-top: 8px;
+        padding: 8px;
+        background-color: #f9f9f9;
+        border: 1px solid #eee;
+        border-radius: 3px;
+        min-height: 1.5em;
+        text-align: center;
+      }
+
+      .tooltip {
+        position: absolute;
+        background-color: #fff;
+        border: 1px solid #ccc;
+        padding: 5px;
+        border-radius: 3px;
+        box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+        font-size: 0.8em;
+        pointer-events: none; /* So it doesn't interfere with mouse events on gates */
+        z-index: 1000;
+        display: none; /* Hidden by default */
+      }
+
+      .gate-drop-placeholder {
+        position: absolute;
+        width: 50px; /* 与 GATE_SIZE 一致 */
+        height: 50px; /* 与 GATE_SIZE 一致 */
+        border: 2px dashed #007bff; /* 蓝色虚线边框 */
+        background-color: rgba(0, 123, 255, 0.1); /* 淡蓝色半透明背景 */
+        box-sizing: border-box; /* 边框和内边距不增加总宽高 */
+        pointer-events: none; /* 使其不干扰下方元素的鼠标事件 */
+        z-index: 0; /* 位于实际门下方，但在线路背景之上 */
+      }
+
+      /* Styles for end-of-lane probability display */
+      .prob-display-item {
+        position: absolute; /* Positioned by JS */
+        width: 50px; /* GATE_SIZE */
+        height: 50px; /* GATE_SIZE */
+        background-color: #f8f9fa;
+        border: 1px solid #ced4da;
+        cursor: default;
+        font-size: 9px; /* Smaller font for probability text */
+        line-height: 1.1; /* Adjusted line height */
+        padding: 2px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: center; /* Center content vertically */
+        align-items: center;
+        text-align: center;
+        z-index: 1; /* Above gate placeholders but below dragged gates */
+      }
+      .prob-display-item .prob-bar-fill-container {
+        width: 85%; /* Relative to parent .prob-display-item */
+        height: 55%; /* Relative to parent .prob-display-item */
+        border: 1px solid #adb5bd;
+        background-color: white;
+        position: relative; /* For absolute positioning of the fill */
+        margin-bottom: 2px; /* Space between bar and text */
+        overflow: hidden; /* Ensure fill doesn't exceed container */
+      }
+      .prob-display-item .prob-bar-fill {
+        background-color: #5cb85c; /* Green color */
+        height: 100%; /* Fill container vertically */
+        width: 0%; /* Width controlled by JS to represent probability */
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        transition: width 0.15s ease-in-out; /* Smooth transition for width change */
+      }
+      .prob-display-item .prob-text {
+        font-size: 9px; /* Ensure text is small enough */
+        color: #212529;
+        white-space: nowrap; /* Prevent text wrapping */
+      }
+
+      /* Added style for the introduction content */
+      #quantumIntroductionContent {
+        margin-bottom: 30px; /* Increased margin */
+        padding: 20px; /* Increased padding */
+        border: 1px solid #ddd;
+        background-color: #fff;
+        line-height: 1.6; /* Improved readability */
+      }
+      #quantumIntroductionContent h2 {
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 5px;
+        margin-top: 0; /* Remove default top margin for the first h2 */
+        margin-bottom: 15px;
+      }
+      #quantumIntroductionContent h3 {
+        margin-top: 20px;
+        margin-bottom: 10px;
+        color: #333;
+      }
+      #quantumIntroductionContent p {
+        margin-bottom: 10px;
+      }
+      #quantumIntroductionContent figure {
+        margin: 15px auto; /* Center figures and add vertical margin */
+        padding: 0;
+        text-align: center;
+      }
+      #quantumIntroductionContent figcaption {
+        font-size: 0.9em;
+        color: #555;
+        margin-top: 5px;
+      }
+      #quantumIntroductionContent ul {
+        list-style-position: inside;
+        padding-left: 20px;
+      }
+      #quantumIntroductionContent li {
+        margin-bottom: 5px;
+      }
+      .swap-connection-line {
+        /* Styles for the line connecting two SWAP gates */
+        /* Similar to .connection-line or can be distinct */
+        background-color: #333; /* Example color */
+        /* z-index, position, width are set by JS */
+      }
+
+      .gate-item {
+        /* Ensure existing .gate-item can handle multi-line text if needed */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        /* ... other properties ... */
+      }
+    </style>
+  </head>
+  <body>
+        <div id="quantumIntroductionContent">
+      <h2>量子门与量子线路</h2>
+
+      <h3>量子比特</h3>
+      <p>
+        量子比特于1992年由物理学家Benjamin Schumacher[9]提出，以二能级系统的 0
+        和 1
+        态进行二进制计算，由于量子叠加态和纠缠态的存在，量子比特可以储存比经典比特更多的信息，从而使得量子计算机有可能达到远超经典计算机的性能。
+      </p>
+      <p>
+        量子比特通常是通过操控和测量具有量子性质的粒子来创建的，例如光子、电子、离子、原子、超导电路等。一个物理系统可以作为量子比特需要满足三个条件[10]：首先，系统可以被初始化为一个确定的基准态；其次，该物理系统中的任意两个态可以由一个幺正变换联系；此外，需要能够在运算所用的基下进行测量。本文中，采用光镊中的中性原子作为量子比特。
+      </p>
+      <p>
+        一个量子比特的Hilbert空间可以作为SU(2)群的表示空间，因此可以通过Bloch球来表示量子比特的态。如图2.1所示，Bloch球面上极角为
+        $ \theta$ ，方位角为 $ \phi $ 的点对应于量子态：
+      </p>
+      $$
+      \psi=\cos\frac{\theta}{2}\left|0\right\rangle+\sin\frac{\theta}{2}e^{i\phi}\left|1\right\rangle
+      $$
+      <figure>
+        <img
+          src=".\photos\BlochSphere.png"
+          alt="图2.1 Bloch球面上的量子态"
+          style="max-width: 400px; height: auto"
+        />
+        <figcaption>图2.1 Bloch球面上的量子态</figcaption>
+      </figure>
+
+      <h3>量子门与量子线路操作</h3>
+      <p>
+        量子门是指由量子比特的Hilbert空间中的幺正变换，按照涉及的量子比特数量分为单比特门和多比特门。通过在量子比特上作用一系列的量子门，可以对其量子态进行调控，再搭配需要的测量等操作，就构成了可以应用于量子计算与量子模拟的量子线路。
+      </p>
+      <p>
+        单比特门即对单个量子比特态的SU(2)变换，其作用相当于将其量子态在Bloch球面上进行旋转。SU(2)变换的生成元为三个Pauli矩阵，在
+        $\left|\uparrow_z\right\rangle = \left|0\right\rangle ，
+        \left|\downarrow_z\right\rangle = \left|1\right\rangle$
+        的基下，Pauli矩阵分别为：
+      </p>
+      $$ \sigma_x=\begin{pmatrix}0&1\\1&0\end{pmatrix} ，
+      \sigma_y=\begin{pmatrix}0&i\\-i&0\end{pmatrix} ，
+      \sigma_z=\begin{pmatrix}1&0\\0&-1\end{pmatrix} $$
+      <p>
+        依据SU(2)变换的性质，将量子比特的态绕 $n$ 轴旋转 $\delta$ 角的操作
+        $R_n(\delta)$ 可以由这些生成元构成：
+      </p>
+      $$ R_n(\delta)=\exp(-i\frac{\delta}{2}\sigma_n) $$
+      <p>
+        其中 $\sigma_n=n\cdot\sigma=\begin{pmatrix}\cos\theta&\sin\theta
+        e^{-i\phi}\\\sin\theta e^{i\phi}&-\cos\theta\end{pmatrix}$ ， $\theta$
+        和 $\phi$ 为 $n$ 轴的极角和方位角。
+      </p>
+      <p>
+        多比特门则是作用在多个量子比特Hilbert空间中的幺正变换，其中双比特门更为基础。CZ门和CNOT门是常见的双比特门，CZ门指当控制比特处于
+        $\left|1\right\rangle$ 态时，对数据比特作用 $\sigma_z$
+        ，而CNOT门指当控制比特处于 $\left|1\right\rangle$ 态时，对数据比特作用
+        $\sigma_x$ 。CZ门和CNOT门在量子线路图中的表示方法如图所示。
+      </p>
+      <figure>
+        <img
+          src=".\photos\controlandcnot.png"
+          alt="CZ门和CNOT门在量子线路图中的表示"
+          style="max-width: 400px; height: auto"
+        />
+        <figcaption>
+          CZ门和CNOT门在量子线路图中的表示<br />注：
+          图中横线代表量子比特，控制比特上黑色圆点代表控制比特为
+          $\left|1\right\rangle$
+          态时执行数据比特上的操作，若为白色圆点则代表控制比特为
+          $\left|0\right\rangle$ 态时执行数据比特上的操作。
+        </figcaption>
+      </figure>
+
+      <h3>受控单门的分解</h3>
+      <p>
+        由于本论文目的是用量子线路实现受控制的TFIM演化算符，因而需要将受控制的旋转门分解为单比特门和CZ门。
+      </p>
+      <p>
+        依据Barenco et
+        al.1995年提出的方法，多比特均匀控制门可以递归地分解为更基础的门。均匀控制门的定义如图所示，k个控制比特希尔伯特空间的每一个基分别对应于数据比特上绕
+        $a$ 轴旋转一个角度的操作。
+      </p>
+      <figure>
+        <img
+          src=".\photos\均匀控制门的定义.png"
+          alt="均匀控制门的定义"
+          style="max-width: 500px; height: auto"
+        />
+        <figcaption>均匀控制门的定义</figcaption>
+      </figure>
+      <p>
+        首先考虑1个控制比特的情况，分解方法如图2.6所示。图中等式右边 $b$ 轴与
+        $a$ 轴垂直，若控制比特处在 $\left|0\right\rangle$ 态，则数据比特绕 $a$
+        轴先旋转 $\frac{\alpha+\beta}{2}$ ，再旋转 $\frac{\alpha-\beta}{2}$
+        ，相当于绕 $a$ 轴旋转 $\alpha$ ；若控制比特处在 $\left|1\right\rangle$
+        态，由 $a \perp b$ ，有 $R_b(\pi) \cdot R_a(\frac{\alpha-\beta}{2})
+        \cdot R_b(\pi) = R_a(\frac{\beta-\alpha}{2})$ ，故数据比特相当于绕 $a$
+        轴旋转 $\beta$ ，与等式左边相符。
+      </p>
+      <figure>
+        <img
+          src=".\photos\单控制比特均匀控制门的分解.png"
+          alt="单控制比特均匀控制门的分解"
+          style="max-width: 600px; height: auto"
+        />
+        <figcaption>单控制比特均匀控制门的分解</figcaption>
+      </figure>
+      <p>
+        进一步，对k个控制比特的均匀控制门，亦可类似地逐级分解。如图，其中
+        $R_{a1}'$ 和 $R_{a2}'$
+        表示的均匀控制门对应的参数可通过代入控制比特的不同状态算出。
+      </p>
+      <figure>
+        <img
+          src=".\photos\均匀控制门的逐级分解.png"
+          alt="均匀控制门的逐级分解"
+          style="max-width: 600px; height: auto"
+        />
+        <figcaption>均匀控制门的逐级分解</figcaption>
+      </figure>
+
+      <h3>生成从1到$2^n$的二进制数</h3>
+      <p>
+        将n个量子比特初始化到全部为0的态，并在每个比特上施加Hadamard门，观察输出结果。
+      </p>
+      $$ \psi=\frac{1}{2^{n/2}}(\left|0\right\rangle+\left|1\right\rangle)
+      \otimes (\left|0\right\rangle+\left|1\right\rangle) \otimes \ldots \otimes
+      (\left|0\right\rangle+\left|1\right\rangle) $$
+      <p>
+        其中每个量子比特处于0和1的概率相等，若将整个寄存器中的n个量子比特的态认为是一个n位的二进制数，则这样的操作等概率地生成了所有
+        从1到$2^n$的二进制数。
+      </p>
+
+      <h3>基础逻辑门的构建</h3>
+      <p>
+        需要注意的是，量子线路无法实现很多经典计算中的逻辑门。因为所有的量子门是酉矩阵，也即具有可逆性。然而，比如经典计算中的与门和或门，由于无法从结果中获得足够的信息还原出输入态，故不能用量子线路实现。
+      </p>
+      <ul>
+        <li>1. 非门：将输入态反转。对应于X门</li>
+        <li>
+          2.
+          SWAP门：量子线路如图所示，可以通过其矩阵形式验证其作用为交换两个输入量子比特的态。
+        </li>
+      </ul>
+      <figure>
+        <img
+          src=".\photos\swapgate.png"
+          alt="SWAP门量子线路图"
+          style="max-width: 300px; height: auto"
+        />
+        <figcaption>SWAP门量子线路图</figcaption>
+      </figure>
+
+      <h3>Deutsch算法</h3>
+      <p>
+        Deutsch算法是体现量子并行性的典型案例。假设存在映射 $f\{0,1\} \to
+        \{0,1\}$，现需要求 $f(0) \oplus f(1)$，其中 $\oplus$
+        表示异或。经典计算需要调用函数f两次，分别计算f(0)和f(1)，再将结果进行异或操作。而量子计算机只需要调用函数f一次，这就是通过Deutsch算法实现的。
+      </p>
+      <p>
+        Deustch算法的线路图如下,其中 $U_f$ 是一个特殊的门，输入 $x$ 和 $y$，输出
+        $x$ 和 $y \oplus f(x)$ ：
+      </p>
+      <figure>
+        <img
+          src=".\photos\Deustch.png"
+          alt="Deutsch算法线路图"
+          style="max-width: 500px; height: auto"
+        />
+        <figcaption>Deutsch算法线路图</figcaption>
+      </figure>
+      <p>
+        对 $U_f$ 门，若输入 $x$ 和
+        $\frac{1}{\sqrt{2}}(\left|0\right\rangle-\left|1\right\rangle)$
+        ，则输出：
+      </p>
+      $$ U_f\left|x\right\rangle(\left|0\right\rangle -
+      \left|1\right\rangle)/\sqrt{2} =
+      \left|x\right\rangle(\left|f(x)\right\rangle - \left|1 \oplus
+      f(x)\right\rangle)/\sqrt{2} = \begin{cases}
+      \left|x\right\rangle(\left|0\right\rangle -
+      \left|1\right\rangle)/\sqrt{2}, & \text{if } f(x) = 0, \\
+      \left|x\right\rangle(\left|1\right\rangle -
+      \left|0\right\rangle)/\sqrt{2}, & \text{if } f(x) = 1 \end{cases} =
+      (-1)^{f(x)}\left|x\right\rangle(\left|0\right\rangle -
+      \left|1\right\rangle)/\sqrt{2}. $$
+      <p>
+        可见 $U_f$
+        门和第二个量子比特的作用是，将f函数变为第一个量子比特上的相位。
+      </p>
+      <p>
+        接下来代入第一个量子比特的态：
+        $\frac{1}{\sqrt{2}}(\left|0\right\rangle+\left|1\right\rangle)$ ，得：
+      </p>
+      $$ \left|\psi_2\right\rangle = U_f(\left|0\right\rangle +
+      \left|1\right\rangle)(\left|0\right\rangle - \left|1\right\rangle)/2 =
+      [(-1)^{f(0)}\left|0\right\rangle + (-1)^{f(1)}\left|1\right\rangle]
+      (\left|0\right\rangle - \left|1\right\rangle)/2 = (-1)^{f(0)}
+      [\left|0\right\rangle + (-1)^{f(0)\oplus f(1)}\left|1\right\rangle]
+      (\left|0\right\rangle - \left|1\right\rangle)/2. $$
+      <p>观察表达式，发现分情况写出就是：</p>
+      $$ \left|\psi_{3L}\right\rangle = \begin{cases}
+      (-1)^{f(0)}\left|0\right\rangle, & \text{if } f(0) \oplus f(1) = 0, \\
+      (-1)^{f(0)}\left|1\right\rangle, & \text{if } f(0) \oplus f(1) = 1.
+      \end{cases} $$
+      <p>
+        进一步，如果输出为0，则f(0)和f(1)相同，若输出结果为1，则f(0)，f(1)不同。
+      </p>
+      <p>
+        同理，这个算法可以拓展到多个量子比特的线路中，称为Deutsch-Jozsa算法，并可以估计更复杂的映射f的输出情况。
+      </p>
+
+      <h3>物理实现技术</h3>
+      <p>(内容待补充)</p>
+
+      <h3>参考文献链接</h3>
+      <p>(链接列表待补充)</p>
+    </div>
+    <h1>量子线路模拟器 (最大4个量子位)</h1>
+    <div class="main-container">
+      <div class="left-panel">
+        <div class="toolbox-container">
+          <h3>门工具箱</h3>
+          <div id="gatePalette" class="gate-palette"></div>
+        </div>
+      </div>
+
+      <div class="center-column-content">
+        <div class="circuit-panel">
+          <div class="circuit-controls">
+            <div class="qubit-input-container">
+              <label for="numQubitsInput">量子位数 (1-4):</label>
+              <input
+                type="number"
+                id="numQubitsInput"
+                value="2"
+                min="1"
+                max="4"
+              />
+            </div>
+            <button id="clearCircuitButton">清空线路</button>
+          </div>
+
+          <div class="circuit-area-container">
+            <h3 id="circuitHeader">量子线路</h3>
+            <div id="circuitLanes" class="circuit-lanes-container"></div>
+          </div>
+          <!-- <div id="statusDisplay" class="status-display">
+            <p id="overallStateDisplay">状态: |Ψ⟩ = ...</p> 
+            <div id="circuitRepresentationDisplay">线路: 空</div>
+          </div> -->
+        </div>
+
+        <div class="bloch-spheres-section-wrapper">
+          <h3>布洛赫球显示</h3>
+          <div id="blochSpheresContainer"></div>
+        </div>
+      </div>
+      <div class="right-panel">
+        <div class="displays-container">
+          <h3>其他可视化</h3>
+          <div class="display-item">
+            <h4>振幅分布</h4>
+            <canvas id="amplitudeCanvas"></canvas>
+          </div>
+        </div>
+        <div
+          id="deutschAlgoContainer"
+          style="
+            margin-top: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+          "
+        >
+          <h4 style="margin-top: 0; margin-bottom: 10px">Deutsch 算法</h4>
+          <div style="display: flex; align-items: center; margin-bottom: 10px">
+            <label for="deutschFunctionSelect" style="margin-right: 10px"
+              >选择函数映射:
+            <select id="deutschFunctionSelect">
+              <option value="f_const_zero">f(0)=0, f(1)=0 </option>
+              <option value="f_const_one">f(0)=1, f(1)=1</option>
+              <option value="f_id">f(0)=0, f(1)=1 </option>
+              <option value="f_not">f(0)=1, f(1)=0</option>
+            </select>
+          </div>
+          <p
+            id="deutschResultOutput"
+            style="margin-top: 10px; font-weight: bold; color: #007bff"
+          ></p>
+          <button
+            id="setupDeutschCircuitButton"
+            style="
+              padding: 8px 12px;
+              font-size: 14px;
+              cursor: pointer;
+              background-color: #28a745;
+              color: white;
+              border: none;
+              border-radius: 4px;
+            "
+          >
+            设置 Deutsch 线路
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="gateTooltip" class="tooltip"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.147.0/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script src="js/math/complex.js"></script>
+    <script src="js/math/matrix.js"></script>
+    <script src="js/circuit/gate.js"></script>
+    <script src="js/circuit/controls.js"></script>
+    <script src="js/circuit/gateColumn.js"></script>
+    <script src="js/circuit/circuitDefinition.js"></script>
+    <script src="js/circuit/circuitStats.js"></script>
+
+    <script src="js/gates/pauli_gates.js"></script>
+    <script src="js/gates/hadamard_gate.js"></script>
+    <script src="js/gates/phase_gates.js"></script>
+    <script src="js/gates/control_gates.js"></script>
+    <script src="js/gates/display_gates.js"></script>
+    <script src="js/gates/swap_gate.js"></script>
+    <script src="js/gates/raising_gates.js"></script>
+    <script src="js/gates/identity_gate.js"></script>
+    <script src="js/ui/painter.js"></script>
+    <script src="js/ui/mathPainter.js"></script>
+    <script type="module" src="js/ui/blochSphere.js"></script>
+    <script type="module" src="js/ui/amplitudeDisplay.js"></script>
+    <script src="js/ui/displayedCircuit.js"></script>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
