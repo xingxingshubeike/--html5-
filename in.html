@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css"
+    />
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
+      onload="renderMathInElement(document.body);"
+    ></script>
+
+    <script>
+      // 等待DOM内容完全加载后执行
+      document.addEventListener("DOMContentLoaded", function () {
+        renderMathInElement(document.body, {
+          // 调用KaTeX的自动渲染函数
+          // 渲染整个文档
+          delimiters: [
+            // 定义数学公式的界定符
+            { left: "$$", right: "$$", display: true }, // $$...$$ 用于块级公式
+            { left: "$", right: "$", display: false }, // $...$   用于行内公式
+            { left: "\\(", right: "\\)", display: false }, // \(...\) 用于行内公式
+            { left: "\\[", right: "\\]", display: true }, // \[...\] 用于块级公式
+          ],
+          ignoredClasses: ["gate-item", "qubit-label"], // 忽略特定类名，避免 KaTeX 破坏门符号或标签的样式
+          macros: {
+            // 定义KaTeX宏，简化常用LaTeX命令的书写
+            "\\ket": "\\left|#1\\right\\rangle", // 定义 \ket{x} 宏，表示量子态 |x⟩
+            "\\bra": "\\left\\langle#1\\right|", // 定义 \bra{x} 宏，表示量子态 ⟨x|
+          },
+        });
+      });
+    </script>
+
+    <title>量子线路模拟器 (最大4量子比特)</title>
+    <style>
+      /* CSS样式定义 */
+      /* 默认链接颜色 */
+      a {
+        color: orange;
+      }
+
+      /* 访问过的链接颜色 */
+      a:visited {
+        color: purple;
+      }
+
+      /* 悬停时的链接颜色 */
+      a:hover {
+        color: red;
+      }
+
+      /* 激活时的链接颜色 */
+      a:active {
+        color: green;
+      }
+      /* 导入Google字体 */
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap");
+
+      /* CSS变量定义，用于主题颜色和字体等 */
+      :root {
+        --bg-deep-dark-blue: #0a0f1e; /* 深邃背景蓝 */
+        --bg-panel-dark-blue: #10162a; /* 面板背景蓝 */
+        --text-primary-light: #e0e0f0; /* 主要文本亮色 */
+        --text-secondary-gray: #a0a0b0; /* 次要文本灰色 */
+        --accent-cyan: #00cfe8; /* 青色强调 */
+        --accent-magenta: #e8008a; /* 洋红强调 */
+        --accent-green: #39ff14; /* 霓虹绿强调 */
+        --accent-orange: #ff8c00; /* 橙色警告 */
+        --accent-red: #ff4500; /* 红色错误 */
+
+        --gate-bg: #202840; /* 量子门背景色 */
+        --gate-border: var(--accent-cyan); /* 量子门边框色 */
+        --gate-text: var(--text-primary-light); /* 量子门文字颜色 */
+        --gate-hover-bg: #2a3450; /* 量子门悬停背景色 */
+
+        --control-bg: #403050; /* 控制门背景色 */
+        --control-border: var(--accent-magenta); /* 控制门边框色 */
+
+        --display-bg: #1a3840; /* 显示门背景色 */
+        --display-border: #50a0b0; /* 显示门边框色 */
+
+        --wire-color: #303850; /* 量子线路导线颜色 */
+        --font-primary: "Inter", sans-serif; /* 主要字体 */
+        --font-mono: "Roboto Mono", monospace; /* 等宽字体 */
+      }
+
+      /* 页面主体样式 */
+      body {
+        font-family: var(--font-primary); /* 设置主要字体 */
+        display: flex; /* 使用flex布局 */
+        flex-direction: column; /* flex子元素垂直排列 */
+        align-items: center; /* flex子元素居中对齐 */
+        margin: 0; /* 外边距为0 */
+        padding-top: 20px; /* 顶部内边距 */
+        background-color: var(--bg-deep-dark-blue); /* 背景色 */
+        color: var(--text-primary-light); /* 文字颜色 */
+        min-height: 100vh; /* 最小高度为视口高度 */
+      }
+
+      /* 标题样式 */
+      h1,
+      h2,
+      h3,
+      h4 {
+        color: var(--text-primary-light);
+        font-weight: 500; /* 字体粗细 */
+      }
+      h1 {
+        color: var(--accent-cyan); /* h1标题使用青色强调色 */
+        margin-bottom: 25px; /* 底部外边距 */
+      }
+
+      /* 主要内容容器样式 */
+      .main-container {
+        display: flex;
+        flex-direction: row; /* flex子元素水平排列 */
+        align-items: flex-start; /* flex子元素顶部对齐 */
+        width: 98%; /* 宽度 */
+        max-width: 1800px; /* 最大宽度 */
+        gap: 20px; /* 子元素间距 */
+      }
+
+      /* 左右面板样式 */
+      .left-panel,
+      .right-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      /* 左侧面板样式 (工具箱) */
+      .left-panel {
+        width: 220px; /* 固定工具箱宽度 */
+        flex-shrink: 0; /* 防止收缩 */
+      }
+
+      /* 右侧面板样式 (可视化显示区域) */
+      .right-panel {
+        width: 380px; /* 固定右侧面板宽度 */
+        flex-shrink: 0; /* 防止收缩 */
+      }
+
+      /* 中间列内容样式 (量子线路区域) */
+      .center-column-content {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1; /* 占据剩余空间 */
+        gap: 20px;
+        min-width: 0; /* 允许列收缩 */
+      }
+
+      /* 卡片样式 (通用) */
+      .card {
+        background-color: var(--bg-panel-dark-blue); /* 卡片背景色 */
+        border-radius: 12px; /* 圆角 */
+        padding: 20px; /* 内边距 */
+        box-shadow: 0 8px 25px rgba(0, 207, 232, 0.1); /* 青色辉光阴影 */
+        border: 1px solid #202840; /* 边框 */
+      }
+
+      /* 卡片内标题样式 */
+      .card h3,
+      .card h4 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        text-align: center; /* 文本居中 */
+        color: var(--accent-cyan);
+        border-bottom: 1px solid var(--wire-color); /* 底部边框线 */
+        padding-bottom: 10px;
+      }
+
+      /* 工具箱容器内量子门调色板样式 */
+      .toolbox-container .gate-palette {
+        display: flex;
+        flex-wrap: wrap; /* 允许换行 */
+        justify-content: space-around; /* 子元素平均分布 */
+        gap: 10px;
+      }
+
+      /* 量子门项目通用样式 (在工具箱中) */
+      .gate-item {
+        width: 55px;
+        height: 55px;
+        border: 1px solid var(--gate-border);
+        background-color: var(--gate-bg);
+        color: var(--gate-text);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: grab; /* 鼠标样式为抓取 */
+        user-select: none; /* 禁止文本选中 */
+        text-align: center;
+        border-radius: 8px;
+        font-size: 1em;
+        font-weight: 500;
+        transition: background-color 0.2s ease, transform 0.1s ease; /* 过渡效果 */
+        position: relative; /* 用于删除按钮的定位 */
+      }
+
+      /* 量子门项目悬停样式 */
+      .gate-item:hover {
+        background-color: var(--gate-hover-bg);
+        transform: scale(1.05); /* 放大效果 */
+      }
+
+      /* 特定门类型的颜色 */
+      /* 控制门和反控制门 */
+      .gate-item[data-gate-id^="Control"],
+      .gate-item[data-gate-id^="AntiControl"] {
+        background-color: var(--control-bg);
+        border-color: var(--control-border);
+      }
+      /* 布洛赫球、振幅、概率显示门 */
+      .gate-item[data-gate-id^="Bloch"],
+      .gate-item[data-gate-id^="Amplitude"],
+      .gate-item[data-gate-id^="Probability"] {
+        background-color: var(--display-bg);
+        border-color: var(--display-border);
+      }
+
+      /* 量子线路控制区域样式 */
+      .circuit-controls {
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between; /* 两端对齐 */
+        align-items: center;
+        padding: 0 10px;
+      }
+
+      /* 量子线路控制按钮和Deutsch算法设置按钮样式 */
+      .circuit-controls button,
+      #setupDeutschCircuitButton {
+        padding: 10px 18px;
+        font-size: 14px;
+        cursor: pointer;
+        background-color: var(--accent-cyan);
+        color: var(--bg-deep-dark-blue);
+        border: none;
+        border-radius: 6px;
+        font-weight: 500;
+        transition: background-color 0.2s ease;
+      }
+
+      /* 按钮悬停样式 */
+      .circuit-controls button:hover,
+      #setupDeutschCircuitButton:hover {
+        background-color: #00a0b8; /* 稍暗的青色 */
+      }
+      /* Deutsch算法按钮特定颜色 */
+      #setupDeutschCircuitButton {
+        background-color: var(--accent-magenta);
+      }
+      #setupDeutschCircuitButton:hover {
+        background-color: #c00070; /* 稍暗的洋红 */
+      }
+
+      /* 量子比特数输入容器标签样式 */
+      .qubit-input-container label {
+        margin-right: 10px;
+        font-size: 14px;
+        color: var(--text-secondary-gray);
+      }
+
+      /* 量子比特数输入框样式 */
+      .qubit-input-container input[type="number"] {
+        width: 60px;
+        padding: 8px;
+        font-size: 14px;
+        border: 1px solid var(--wire-color);
+        border-radius: 6px;
+        background-color: #182038;
+        color: var(--text-primary-light);
+        text-align: center;
+      }
+
+      /* 量子线路通道容器样式 */
+      .circuit-lanes-container {
+        position: relative; /* 用于绝对定位内部元素 */
+        padding: 10px 0;
+      }
+
+      /* 单个量子比特通道样式 */
+      .qubit-lane {
+        display: flex;
+        align-items: center;
+        height: 70px; /* 增加高度以容纳更大的门和标签 */
+        border-bottom: 1px dashed var(--wire-color); /* 底部虚线 */
+        background-color: transparent; /* 通道背景透明化 */
+        margin-bottom: 8px; /* 通道间距 */
+        padding-left: 140px; /* 左侧内边距，为标签留出空间 */
+        position: relative; /* 用于绝对定位内部元素，如标签 */
+      }
+      /* 最后一个量子比特通道无底部边框 */
+      .qubit-lane:last-child {
+        border-bottom: none;
+      }
+
+      /* 量子比特标签样式 (如 q0: |0⟩) */
+      .qubit-label {
+        position: absolute; /* 绝对定位 */
+        left: 10px; /* 距离通道左侧距离 */
+        top: 50%; /* 垂直居中 */
+        transform: translateY(-50%); /* 精确垂直居中 */
+        font-size: 1em;
+        color: var(--text-secondary-gray);
+        display: flex;
+        align-items: center;
+        width: 125px; /* 标签宽度 */
+        font-family: var(--font-mono); /* 使用等宽字体 */
+      }
+      /* 量子比特标签内span元素样式 (如 q0) */
+      .qubit-label span {
+        margin-right: 5px;
+      }
+
+      /* 量子比特初始状态选择器样式 */
+      .qubit-initial-state-selector {
+        font-size: 0.9em;
+        padding: 4px 6px;
+        border-radius: 4px;
+        border: 1px solid var(--wire-color);
+        background-color: #182038;
+        color: var(--text-primary-light);
+        font-family: var(--font-mono);
+      }
+
+      /* 量子线路通道拖放区域样式 */
+      .circuit-lane-dropzone {
+        flex-grow: 1; /* 占据剩余空间 */
+        display: flex;
+        align-items: center;
+        min-height: 60px; /* 最小高度，与 qubit-lane 内门区域一致 */
+        position: relative; /* 用于绝对定位内部的门 */
+      }
+
+      /* 电路中门的样式 */
+      .circuit-lane-dropzone .gate-item {
+        color: var(--gate-text); /* 文字颜色 */
+        cursor: default; /* 默认鼠标样式 */
+        position: absolute; /* 关键：允许门在dropzone内绝对定位 */
+      }
+
+      /* 电路中量子门上的删除按钮样式 */
+      .circuit-lane-dropzone .gate-item .delete-gate {
+        position: absolute;
+        top: -10px; /* 按钮位置在门的右上方 */
+        right: -10px;
+        background: var(--accent-red); /* 红色背景 */
+        color: white; /* 白色文字 */
+        border-radius: 50%; /* 圆形 */
+        width: 20px;
+        height: 20px;
+        font-size: 14px;
+        line-height: 20px; /* 使文字垂直居中 */
+        text-align: center;
+        cursor: pointer; /* 鼠标样式为指针 */
+        border: 1px solid var(--bg-panel-dark-blue);
+        font-weight: bold;
+        display: none; /* 默认隐藏 */
+        z-index: 5; /* 确保在门之上 */
+      }
+      /* 鼠标悬停在门上时显示删除按钮 */
+      .circuit-lane-dropzone .gate-item:hover .delete-gate {
+        display: block;
+      }
+
+      /* 布洛赫球容器样式 */
+      #blochSpheresContainer {
+        display: flex;
+        flex-wrap: wrap; /* 允许换行 */
+        justify-content: space-around; /* 平均分布 */
+        align-items: flex-start; /* 顶部对齐 */
+        gap: 15px;
+      }
+      /* 布洛赫球单个显示项目样式 */
+      #blochSpheresContainer .display-item {
+        flex-basis: calc(50% - 30px); /* 动态计算宽度，一行两个，并考虑间隙 */
+        max-width: 320px; /* 最大宽度 */
+        padding: 15px;
+        background-color: var(--bg-panel-dark-blue);
+        border-radius: 8px;
+        border: 1px solid #202840;
+      }
+      /* 布洛赫球显示项目内标题样式 */
+      #blochSpheresContainer .display-item h4 {
+        text-align: center;
+        font-size: 0.95em;
+        margin-bottom: 10px;
+        color: var(--text-secondary-gray);
+      }
+      /* 布洛赫球显示项目内canvas样式 */
+      #blochSpheresContainer .display-item canvas {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1 / 1; /* 保持方形 */
+        cursor: grab; /* 鼠标样式为抓取 (用于旋转控制) */
+        border-radius: 6px;
+      }
+
+      /* 通用显示项目内canvas样式 (包括振幅显示) */
+      .display-item canvas {
+        border: 1px solid var(--wire-color);
+        background-color: var(--bg-panel-dark-blue); /* 与面板背景色一致 */
+        display: block; /* 块级元素 */
+        margin: 0 auto; /* 水平居中 */
+        border-radius: 6px;
+      }
+      /* 振幅显示canvas特定样式 */
+      #amplitudeCanvas {
+        width: 100%;
+        max-width: 340px; /* 最大宽度 */
+        height: 220px; /* 固定高度 */
+      }
+
+      /* 工具提示框样式 (用于显示量子门信息) */
+      .tooltip {
+        position: absolute; /* 绝对定位 */
+        background-color: #283048; /* 深色背景 */
+        border: 1px solid var(--accent-cyan);
+        padding: 8px 12px;
+        border-radius: 6px;
+        box-shadow: 0 4px 15px rgba(0, 207, 232, 0.15);
+        font-size: 0.85em;
+        color: var(--text-primary-light);
+        pointer-events: none; /* 不响应鼠标事件 */
+        z-index: 1000; /* 确保在最上层 */
+        display: none; /* 默认隐藏 */
+        white-space: pre-wrap; /* 保持换行符 */
+      }
+
+      /* 量子门拖放占位符样式 */
+      .gate-drop-placeholder {
+        position: absolute;
+        width: 55px;
+        height: 55px;
+        border: 2px dashed var(--accent-cyan); /* 虚线边框 */
+        background-color: rgba(0, 207, 232, 0.1); /* 半透明背景 */
+        box-sizing: border-box; /* 边框和内边距包含在宽度和高度内 */
+        pointer-events: none; /* 不响应鼠标事件 */
+        z-index: 0; /* 在门下方 */
+        border-radius: 8px;
+      }
+
+      /* 行末概率显示条样式 */
+      .prob-display-item {
+        position: absolute; /* 绝对定位，相对于qubit-lane */
+        width: 55px; /* 与门大小一致 */
+        height: 55px;
+        background-color: #182038; /* 背景色 */
+        border: 1px solid var(--wire-color); /* 边框 */
+        color: var(--text-secondary-gray); /* 文字颜色 */
+        cursor: default; /* 默认鼠标 */
+        font-size: 9px; /* 字体大小 */
+        line-height: 1.1; /* 行高 */
+        padding: 3px; /* 内边距 */
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column; /* 内部元素垂直排列 */
+        justify-content: center; /* 垂直居中 */
+        align-items: center; /* 水平居中 */
+        text-align: center; /* 文本居中 */
+        z-index: 1; /* 在连接线之上，门之下 */
+        border-radius: 8px; /* 圆角 */
+      }
+      /* 概率条填充容器样式 */
+      .prob-display-item .prob-bar-fill-container {
+        width: 80%; /* 宽度 */
+        height: 45%; /* 高度，为文本留出空间 */
+        border: 1px solid var(--wire-color);
+        background-color: var(--bg-deep-dark-blue); /* 背景色 */
+        position: relative; /* 用于内部填充条的定位 */
+        margin-bottom: 3px; /* 与下方文本的间距 */
+        overflow: hidden; /* 隐藏超出部分 */
+        border-radius: 3px; /* 圆角 */
+      }
+      /* 概率条填充部分样式 */
+      .prob-display-item .prob-bar-fill {
+        background-color: var(--accent-green); /* 强调绿色 */
+        height: 100%;
+        width: 0%; /* 初始宽度为0，通过JS更新 */
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        transition: width 0.2s ease-in-out; /* 宽度变化过渡效果 */
+        border-radius: 2px; /* 圆角 */
+      }
+      /* 概率文本样式 */
+      .prob-display-item .prob-text {
+        font-size: 9px;
+        color: var(--text-secondary-gray);
+        white-space: nowrap; /* 不换行 */
+        font-family: var(--font-mono); /* 等宽字体 */
+      }
+
+      /* 控制门连接线和SWAP门连接线样式 */
+      .connection-line,
+      .swap-connection-line {
+        position: absolute;
+        background-color: var(--accent-cyan); /* 默认连接线颜色 */
+        width: 2.5px; /* 稍粗一些 */
+        z-index: 0; /* 在门之下 */
+        border-radius: 1px; /* 轻微圆角 */
+      }
+      /* SWAP门特定连接线颜色 */
+      .swap-connection-line {
+        background-color: var(--accent-magenta);
+      }
+
+      /* Deutsch算法容器样式 */
+      #deutschAlgoContainer {
+        margin-top: 0; /* 已由父级gap处理 */
+        padding: 15px;
+        border: 1px solid #202840;
+        background-color: var(--bg-panel-dark-blue);
+        border-radius: 8px;
+      }
+      /* Deutsch算法容器内标题样式 */
+      #deutschAlgoContainer h4 {
+        margin-top: 0;
+        margin-bottom: 12px;
+        color: var(--accent-magenta); /* 洋红色强调 */
+        text-align: left; /* 左对齐 */
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--wire-color);
+      }
+      /* Deutsch算法容器内标签样式 */
+      #deutschAlgoContainer label {
+        margin-right: 8px;
+        color: var(--text-secondary-gray);
+      }
+      /* Deutsch算法容器内下拉选择框样式 */
+      #deutschAlgoContainer select {
+        padding: 6px 8px;
+        border-radius: 4px;
+        border: 1px solid var(--wire-color);
+        background-color: #182038;
+        color: var(--text-primary-light);
+        font-family: var(--font-primary);
+      }
+      /* Deutsch算法结果输出区域样式 */
+      #deutschResultOutput {
+        margin-top: 12px;
+        margin-bottom: 12px;
+        font-weight: 500;
+        color: var(--accent-cyan);
+        font-family: var(--font-mono);
+        font-size: 0.9em;
+      }
+
+      /* 针对 KaTeX 渲染的文本调整 */
+      .katex {
+        font-size: 1.05em !important; /* 统一 KaTeX 字体大小 (使用!important确保覆盖) */
+        color: var(--text-primary-light); /* 确保颜色一致 */
+      }
+      /* 量子比特初始状态选择器选项样式 */
+      .qubit-initial-state-selector option {
+        background-color: #182038;
+        color: var(--text-primary-light);
+      }
+
+      /* 滚动条美化 (针对Webkit内核浏览器，如Chrome, Safari) */
+      ::-webkit-scrollbar {
+        width: 8px; /* 滚动条宽度 */
+        height: 8px; /* 水平滚动条高度 */
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--bg-deep-dark-blue); /* 滚动条轨道背景色 */
+        border-radius: 4px; /* 圆角 */
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #2a3450; /* 滚动条滑块背景色 */
+        border-radius: 4px; /* 圆角 */
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--accent-cyan); /* 悬停时滑块颜色 */
+      }
+
+      /* 引言介绍卡片样式 */
+      .introduction-card {
+        margin: 20px auto 40px auto; /* 上、左右自动、下外边距，实现水平居中 */
+        max-width: 1000px; /* 限制阅读宽度，提升体验 */
+        padding: 25px 35px; /* 卡片内部的填充 */
+        border: 1px solid var(--bg-panel-dark-blue); /* 添加一个几乎不可见的边框，使其看起来更像其他卡片 */
+      }
+
+      /* 引言内容区域 H2 标题样式 */
+      #quantumIntroductionContent h2 {
+        /* 例如："量子门与量子线路" */
+        text-align: center;
+        color: var(--accent-cyan); /* 使用强调青色 */
+        border-bottom: 1px solid var(--wire-color); /* 底部实线分隔 */
+        padding-bottom: 15px;
+        margin-top: 0; /* 卡片本身有padding，所以重置h2的顶部外边距 */
+        margin-bottom: 30px; /* 主标题后的间距 */
+        font-size: 1.8em; /* 稍大的字号 */
+        font-weight: 500;
+      }
+
+      /* 引言内容区域 H3 标题样式 */
+      #quantumIntroductionContent h3 {
+        /* 例如："量子比特", "量子门与量子线路操作" */
+        color: var(--text-primary-light); /* 使用主要亮色文本 */
+        border-bottom: 1px dashed var(--wire-color); /* 底部虚线分隔，与h2区分 */
+        padding-bottom: 10px;
+        margin-top: 35px; /* 每个小节前的间距 */
+        margin-bottom: 20px; /* 小节标题后的间距 */
+        font-size: 1.45em; /* 合适的副标题字号 */
+        text-align: left; /* 小节标题左对齐 */
+        font-weight: 500;
+      }
+
+      /* 引言内容区域段落样式 */
+      #quantumIntroductionContent p {
+        color: var(--text-primary-light); /* 主要亮色文本 */
+        line-height: 1.75; /* 更舒适的行高 */
+        margin-bottom: 18px; /* 段落间距 */
+        text-align: left; /* 左对齐，通常比两端对齐更易读 */
+      }
+
+      /* 引言内容区域图片容器(figure)样式 */
+      #quantumIntroductionContent figure {
+        margin: 25px auto 30px auto; /* 图片块的上下外边距及自动左右居中 */
+        text-align: center; /* 内部图片和图注居中 */
+      }
+
+      /* 引言内容区域图片(img)样式 */
+      #quantumIntroductionContent figure img {
+        border-radius: 8px; /* 图片圆角 */
+        border: 1px solid var(--wire-color); /* 图片边框颜色 */
+        max-width: 100%; /* 响应式图片，最大宽度为父容器的100% */
+        height: auto; /* 高度自动，保持纵横比 */
+        background-color: var(
+          --bg-deep-dark-blue
+        ); /* 若图片有透明背景，则背景色与页面背景一致 */
+        padding: 6px; /* 图片与边框间的内边距 */
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25); /* 为图片添加细微阴影 */
+      }
+
+      /* 引言内容区域图片描述(figcaption)样式 */
+      #quantumIntroductionContent figcaption {
+        color: var(--text-secondary-gray); /* 次要灰色文本 */
+        font-size: 0.9em; /* 图注字号略小 */
+        margin-top: 12px; /* 图注与图片间的间距 */
+        line-height: 1.5;
+      }
+
+      /* 引言内容区域无序列表(ul)样式 */
+      #quantumIntroductionContent ul {
+        list-style-type: disc; /* 使用实心圆点作为列表标记 */
+        list-style-position: outside; /* 标记在文本外部 */
+        padding-left: 30px; /* 列表的左侧内边距，使标记和文本有空间 */
+        margin-bottom: 20px; /* 列表块的底部外边距 */
+      }
+
+      /* 引言内容区域列表项(li)样式 */
+      #quantumIntroductionContent ul li {
+        color: var(--text-primary-light); /* 列表项文本颜色 */
+        margin-bottom: 10px; /* 列表项之间的间距 */
+        line-height: 1.7;
+        padding-left: 8px; /* 列表标记与文本之间的间距 */
+      }
+
+      /* 自定义列表项标记的颜色 (现代浏览器支持) */
+      #quantumIntroductionContent ul li::marker {
+        color: var(--accent-cyan);
+      }
+
+      /* KaTeX 数学公式在引言部分的特定调整 (如果需要) */
+      .introduction-card .katex {
+        font-size: 1.1em !important; /* 确保可读性，使用!important增加优先级 */
+      }
+
+      /* 引言部分未来可能加入的超链接样式 */
+      #quantumIntroductionContent a {
+        color: var(--accent-cyan); /* 链接颜色 */
+        text-decoration: none; /* 去除下划线 */
+      }
+      /* 引言部分超链接悬停样式 */
+      #quantumIntroductionContent a:hover {
+        text-decoration: underline; /* 悬停时显示下划线 */
+        color: var(--accent-magenta); /* 悬停时颜色变为洋红 */
+      }
+      /* 作者信息样式 */
+      .author-info {
+        text-align: center; /* 文本居中 */
+        color: var(--text-secondary-gray); /* 使用次要文本颜色 */
+        font-size: 0.95em; /* 字号略小于普通段落 */
+        font-style: italic; /* 斜体样式 */
+        margin-top: -10px; /* 减少与上方h2标题的间距 */
+        margin-bottom: 30px; /* 与下方第一个h3内容的间距 */
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="quantumIntroductionContent" class="card introduction-card">
+      <h2>量子门与量子线路</h2>
+      <p class="author-info">作者：王动、李竹涵 （复旦大学物理学系）</p>
+      <h3>量子比特</h3>
+      <p>
+        量子比特于1992年由物理学家Benjamin Schumacher[9]提出，以二能级系统的 0
+        和 1
+        态进行二进制计算，由于量子叠加态和纠缠态的存在，量子比特可以储存比经典比特更多的信息，从而使得量子计算机有可能达到远超经典计算机的性能。
+      </p>
+      <p>
+        量子比特通常是通过操控和测量具有量子性质的粒子来创建的，例如光子、电子、离子、原子、超导电路等。一个物理系统可以作为量子比特需要满足三个条件[10]：首先，系统可以被初始化为一个确定的基准态；其次，该物理系统中的任意两个态可以由一个幺正变换联系；此外，需要能够在运算所用的基下进行测量。本文中，采用光镊中的中性原子作为量子比特。
+      </p>
+      <p>
+        一个量子比特的Hilbert空间可以作为SU(2)群的表示空间，因此可以通过Bloch球来表示量子比特的态。如图2.1所示，Bloch球面上极角为
+        $ \theta$ ，方位角为 $ \phi $ 的点对应于量子态：
+      </p>
+      $$
+      \psi=\cos\frac{\theta}{2}\left|0\right\rangle+\sin\frac{\theta}{2}e^{i\phi}\left|1\right\rangle
+      $$
+      <figure>
+        <img
+          src=".\photos\BlochSphere.png"
+          alt="图2.1 Bloch球面上的量子态"
+          style="max-width: 400px; height: auto"
+        />
+        <figcaption>图2.1 Bloch球面上的量子态</figcaption>
+      </figure>
+
+      <h3>量子门与量子线路操作</h3>
+      <p>
+        量子门是指由量子比特的Hilbert空间中的幺正变换，按照涉及的量子比特数量分为单比特门和多比特门。通过在量子比特上作用一系列的量子门，可以对其量子态进行调控，再搭配需要的测量等操作，就构成了可以应用于量子计算与量子模拟的量子线路。
+      </p>
+      <p>
+        单比特门即对单个量子比特态的SU(2)变换，其作用相当于将其量子态在Bloch球面上进行旋转。SU(2)变换的生成元为三个Pauli矩阵，在
+        $\left|\uparrow_z\right\rangle = \left|0\right\rangle ，
+        \left|\downarrow_z\right\rangle = \left|1\right\rangle$
+        的基下，Pauli矩阵分别为：
+      </p>
+      $$ \sigma_x=\begin{pmatrix}0&1\\1&0\end{pmatrix} ，
+      \sigma_y=\begin{pmatrix}0&i\\-i&0\end{pmatrix} ，
+      \sigma_z=\begin{pmatrix}1&0\\0&-1\end{pmatrix} $$
+      <p>
+        依据SU(2)变换的性质，将量子比特的态绕 $n$ 轴旋转 $\delta$ 角的操作
+        $R_n(\delta)$ 可以由这些生成元构成：
+      </p>
+      $$ R_n(\delta)=\exp(-i\frac{\delta}{2}\sigma_n) $$
+      <p>
+        其中 $\sigma_n=n\cdot\sigma=\begin{pmatrix}\cos\theta&\sin\theta
+        e^{-i\phi}\\\sin\theta e^{i\phi}&-\cos\theta\end{pmatrix}$ ， $\theta$
+        和 $\phi$ 为 $n$ 轴的极角和方位角。
+      </p>
+      <p>
+        多比特门则是作用在多个量子比特Hilbert空间中的幺正变换，其中双比特门更为基础。CZ门和CNOT门是常见的双比特门，CZ门指当控制比特处于
+        $\left|1\right\rangle$ 态时，对数据比特作用 $\sigma_z$
+        ，而CNOT门指当控制比特处于 $\left|1\right\rangle$ 态时，对数据比特作用
+        $\sigma_x$ 。CZ门和CNOT门在量子线路图中的表示方法如图所示。
+      </p>
+      <figure>
+        <img
+          src=".\photos\controlandcnot.png"
+          alt="CZ门和CNOT门在量子线路图中的表示"
+          style="max-width: 400px; height: auto"
+        />
+        <figcaption>
+          CZ门和CNOT门在量子线路图中的表示<br />注：
+          图中横线代表量子比特，控制比特上黑色圆点代表控制比特为
+          $\left|1\right\rangle$
+          态时执行数据比特上的操作，若为白色圆点则代表控制比特为
+          $\left|0\right\rangle$ 态时执行数据比特上的操作。
+        </figcaption>
+      </figure>
+
+      <h3>受控单门的分解</h3>
+      <p>
+        由于本论文目的是用量子线路实现受控制的TFIM演化算符，因而需要将受控制的旋转门分解为单比特门和CZ门。
+      </p>
+      <p>
+        依据Barenco et
+        al.1995年提出的方法，多比特均匀控制门可以递归地分解为更基础的门。均匀控制门的定义如图所示，k个控制比特希尔伯特空间的每一个基分别对应于数据比特上绕
+        $a$ 轴旋转一个角度的操作。
+      </p>
+      <figure>
+        <img
+          src=".\photos\均匀控制门的定义.png"
+          alt="均匀控制门的定义"
+          style="max-width: 500px; height: auto"
+        />
+        <figcaption>均匀控制门的定义</figcaption>
+      </figure>
+      <p>
+        首先考虑1个控制比特的情况，分解方法如图2.6所示。图中等式右边 $b$ 轴与
+        $a$ 轴垂直，若控制比特处在 $\left|0\right\rangle$ 态，则数据比特绕 $a$
+        轴先旋转 $\frac{\alpha+\beta}{2}$ ，再旋转 $\frac{\alpha-\beta}{2}$
+        ，相当于绕 $a$ 轴旋转 $\alpha$ ；若控制比特处在 $\left|1\right\rangle$
+        态，由 $a \perp b$ ，有 $R_b(\pi) \cdot R_a(\frac{\alpha-\beta}{2})
+        \cdot R_b(\pi) = R_a(\frac{\beta-\alpha}{2})$ ，故数据比特相当于绕 $a$
+        轴旋转 $\beta$ ，与等式左边相符。
+      </p>
+      <figure>
+        <img
+          src=".\photos\单控制比特均匀控制门的分解.png"
+          alt="单控制比特均匀控制门的分解"
+          style="max-width: 600px; height: auto"
+        />
+        <figcaption>单控制比特均匀控制门的分解</figcaption>
+      </figure>
+      <p>
+        进一步，对k个控制比特的均匀控制门，亦可类似地逐级分解。如图，其中
+        $R_{a1}'$ 和 $R_{a2}'$
+        表示的均匀控制门对应的参数可通过代入控制比特的不同状态算出。
+      </p>
+      <figure>
+        <img
+          src=".\photos\均匀控制门的逐级分解.png"
+          alt="均匀控制门的逐级分解"
+          style="max-width: 600px; height: auto"
+        />
+        <figcaption>均匀控制门的逐级分解</figcaption>
+      </figure>
+
+      <h3>生成从1到$2^n$的二进制数</h3>
+      <p>
+        将n个量子比特初始化到全部为0的态，并在每个比特上施加Hadamard门，观察输出结果。
+      </p>
+      $$ \psi=\frac{1}{2^{n/2}}(\left|0\right\rangle+\left|1\right\rangle)
+      \otimes (\left|0\right\rangle+\left|1\right\rangle) \otimes \ldots \otimes
+      (\left|0\right\rangle+\left|1\right\rangle) $$
+      <p>
+        其中每个量子比特处于0和1的概率相等，若将整个寄存器中的n个量子比特的态认为是一个n位的二进制数，则这样的操作等概率地生成了所有
+        从1到$2^n$的二进制数。
+      </p>
+
+      <h3>基础逻辑门的构建</h3>
+      <p>
+        需要注意的是，量子线路无法实现很多经典计算中的逻辑门。因为所有的量子门是酉矩阵，也即具有可逆性。然而，比如经典计算中的与门和或门，由于无法从结果中获得足够的信息还原出输入态，故不能用量子线路实现。
+      </p>
+      <ul>
+        <li>1. 非门：将输入态反转。对应于X门</li>
+        <li>
+          2.
+          SWAP门：量子线路如图所示，可以通过其矩阵形式验证其作用为交换两个输入量子比特的态。
+        </li>
+      </ul>
+      <figure>
+        <img
+          src=".\photos\swapgate.png"
+          alt="SWAP门量子线路图"
+          style="max-width: 300px; height: auto"
+        />
+        <figcaption>SWAP门量子线路图</figcaption>
+      </figure>
+
+      <h3>Deutsch算法</h3>
+      <p>
+        Deutsch算法是体现量子并行性的典型案例。假设存在映射 $f\{0,1\} \to
+        \{0,1\}$，现需要求 $f(0) \oplus f(1)$，其中 $\oplus$
+        表示异或。经典计算需要调用函数f两次，分别计算f(0)和f(1)，再将结果进行异或操作。而量子计算机只需要调用函数f一次，这就是通过Deutsch算法实现的。
+      </p>
+      <p>
+        Deustch算法的线路图如下,其中 $U_f$ 是一个特殊的门，输入 $x$ 和 $y$，输出
+        $x$ 和 $y \oplus f(x)$ ：
+      </p>
+      <figure>
+        <img
+          src=".\photos\Deustch.png"
+          alt="Deutsch算法线路图"
+          style="max-width: 500px; height: auto"
+        />
+        <figcaption>Deutsch算法线路图</figcaption>
+      </figure>
+      <p>
+        对 $U_f$ 门，若输入 $x$ 和
+        $\frac{1}{\sqrt{2}}(\left|0\right\rangle-\left|1\right\rangle)$
+        ，则输出：
+      </p>
+      $$ \begin{aligned} U_f\left|x\right\rangle(\left|0\right\rangle -
+      \left|1\right\rangle)/\sqrt{2} &=
+      \left|x\right\rangle(\left|f(x)\right\rangle - \left|1 \oplus
+      f(x)\right\rangle)/\sqrt{2} \\ & = \begin{cases}
+      \left|x\right\rangle(\left|0\right\rangle -
+      \left|1\right\rangle)/\sqrt{2}, \text{if } f(x) = 0, \\
+      \left|x\right\rangle(\left|1\right\rangle -
+      \left|0\right\rangle)/\sqrt{2}, \text{if } f(x) = 1 \end{cases} \\ &=
+      (-1)^{f(x)}\left|x\right\rangle(\left|0\right\rangle -
+      \left|1\right\rangle)/\sqrt{2}. \end{aligned} $$
+      <p>
+        可见 $U_f$
+        门和第二个量子比特的作用是，将f函数变为第一个量子比特上的相位。
+      </p>
+      <p>
+        接下来代入第一个量子比特的态：
+        $\frac{1}{\sqrt{2}}(\left|0\right\rangle+\left|1\right\rangle)$ ，得：
+      </p>
+      $$ \begin{aligned} \left|\psi_2\right\rangle &= U_f(\left|0\right\rangle +
+      \left|1\right\rangle)(\left|0\right\rangle - \left|1\right\rangle)/2 \\ &
+      = [(-1)^{f(0)}\left|0\right\rangle + (-1)^{f(1)}\left|1\right\rangle]
+      (\left|0\right\rangle - \left|1\right\rangle)/2 \\ &= (-1)^{f(0)}
+      [\left|0\right\rangle + (-1)^{f(0)\oplus f(1)}\left|1\right\rangle]
+      (\left|0\right\rangle - \left|1\right\rangle)/2. \end{aligned}$$
+      <p>观察表达式，发现分情况写出就是：</p>
+      $$ \left|\psi_{3L}\right\rangle = \begin{cases}
+      (-1)^{f(0)}\left|0\right\rangle, & \text{if } f(0) \oplus f(1) = 0, \\
+      (-1)^{f(0)}\left|1\right\rangle, & \text{if } f(0) \oplus f(1) = 1.
+      \end{cases} $$
+      <p>
+        进一步，如果输出为0，则f(0)和f(1)相同，若输出结果为1，则f(0)，f(1)不同。
+      </p>
+      <p>
+        同理，这个算法可以拓展到多个量子比特的线路中，称为Deutsch-Jozsa算法，并可以估计更复杂的映射f的输出情况。
+      </p>
+
+      <h3>物理实现技术</h3>
+      <p>(内容待补充)</p>
+
+      <h3>参考文献链接</h3>
+      <p>(链接列表待补充)</p>
+
+      <h3>一些推荐的网站</h3>
+      <p>
+        <a href="https://m.youtube.com/watch?v=IrbJYsep45E"
+          >1、量子计算的并行性简介</a
+        >
+      </p>
+      <p>
+        <a href="https://m.youtube.com/watch?v=IrbJYsep45E"
+          >2、Deutsch算法、Shor算法、Grover算法简介</a
+        >
+      </p>
+      <p>
+        <a href="https://www.youtube.com/playlist?list=PL1826E60FD05B44E4"
+          >3、量子计算系列课程——Michael Nielsen</a
+        >
+      </p>
+      <p>
+        <a href="https://algassert.com/quirk#circuit={%22cols%22:[]}"
+          >4、本网页灵感来源</a
+        >
+      </p>
+    </div>
+    <h1>量子线路模拟器</h1>
+    <div class="main-container">
+      <aside class="left-panel">
+        <div class="card toolbox-container">
+          <h3>
+            <span class="katex"
+              ><span class="katex-html" aria-hidden="true"
+                ><span class="strut" style="height: 0.6944em"></span
+                ><span class="style-wrap"
+                  ><span class="mord mtight"
+                    ><span class="mord textrm mtight">门</span></span
+                  ></span
+                ></span
+              ></span
+            >工具箱
+          </h3>
+          <div id="gatePalette" class="gate-palette"></div>
+        </div>
+      </aside>
+
+      <main class="center-column-content">
+        <div class="card circuit-panel">
+          <div class="circuit-controls">
+            <div class="qubit-input-container">
+              <label for="numQubitsInput">量子位数 (1-4):</label>
+              <input
+                type="number"
+                id="numQubitsInput"
+                value="2"
+                min="1"
+                max="4"
+              />
+            </div>
+            <button id="clearCircuitButton">清空线路</button>
+          </div>
+          <div class="circuit-area-container">
+            <h3 id="circuitHeader">量子线路</h3>
+            <div id="circuitLanes" class="circuit-lanes-container"></div>
+          </div>
+        </div>
+
+        <div class="card bloch-spheres-section-wrapper">
+          <h3>布洛赫球</h3>
+          <div id="blochSpheresContainer"></div>
+        </div>
+      </main>
+
+      <aside class="right-panel">
+        <div class="card displays-container">
+          <h3>状态可视化</h3>
+          <div class="display-item">
+            <h4>振幅分布</h4>
+            <canvas id="amplitudeCanvas"></canvas>
+          </div>
+        </div>
+
+        <div class="card" id="deutschAlgoContainer">
+          <h4>Deutsch 算法示例</h4>
+          <div style="display: flex; align-items: center; margin-bottom: 10px">
+            <label for="deutschFunctionSelect">选择函数 $f$: </label>
+            <select id="deutschFunctionSelect">
+              <option value="f_const_zero">f(0)=0, f(1)=0 (常数)</option>
+              <option value="f_const_one">f(0)=1, f(1)=1 (常数)</option>
+              <option value="f_id">f(0)=0, f(1)=1 (平衡)</option>
+              <option value="f_not">f(0)=1, f(1)=0 (平衡)</option>
+            </select>
+          </div>
+          <button id="setupDeutschCircuitButton">设置 Deutsch 线路</button>
+          <p id="deutschResultOutput"></p>
+        </div>
+      </aside>
+    </div>
+    <div id="gateTooltip" class="tooltip"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.147.0/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script src="js/math/complex.js"></script>
+    <script src="js/math/matrix.js"></script>
+    <script src="js/circuit/gate.js"></script>
+    <script src="js/circuit/controls.js"></script>
+    <script src="js/circuit/gateColumn.js"></script>
+    <script src="js/circuit/circuitDefinition.js"></script>
+    <script src="js/circuit/circuitStats.js"></script>
+    <script src="js/gates/pauli_gates.js"></script>
+    <script src="js/gates/hadamard_gate.js"></script>
+    <script src="js/gates/phase_gates.js"></script>
+    <script src="js/gates/control_gates.js"></script>
+    <script src="js/gates/display_gates.js"></script>
+    <script src="js/gates/swap_gate.js"></script>
+    <script src="js/gates/raising_gates.js"></script>
+    <script src="js/gates/identity_gate.js"></script>
+    <script src="js/ui/painter.js"></script>
+    <script src="js/ui/mathPainter.js"></script>
+    <script type="module" src="js/ui/blochSphere.js"></script>
+    <script type="module" src="js/ui/amplitudeDisplay.js"></script>
+    <script src="js/ui/displayedCircuit.js"></script>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
